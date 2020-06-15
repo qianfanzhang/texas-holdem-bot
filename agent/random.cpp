@@ -16,6 +16,11 @@ int Random::randint(int l, int r) {
     return dist(rng.rng);
 }
 
+bool Random::decide(float p) {
+    std::discrete_distribution<int> dist({1 - p, p});
+    return dist(rng.rng);
+}
+
 int Random::choice(int n, const float p[]) {
     std::discrete_distribution<int> dist(p, p + n);
     return dist(rng.rng);

@@ -2,3 +2,4 @@ logs/
 dealer
 agent/blueprint
 agent/abstraction
+agent/blueprint_checkpoint.txt

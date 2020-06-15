@@ -26,11 +26,11 @@ void CardState::print() const {
 uint64_t CardState::getMask() const {
     uint64_t mask = 0;
     for (auto c: holeCards[0])
-        mask |= 1 << c;
+        mask |= 1ll << c;
     for (auto c: holeCards[1])
-        mask |= 1 << c;
+        mask |= 1ll << c;
     for (auto c: boardCards)
-        mask |= 1 << c;
+        mask |= 1ll << c;
     return mask;
 }
 
@@ -67,8 +67,8 @@ void CardState::sampleAll() {
 
 void sample(Cards& cards, uint64_t& mask) {
     uint8_t c = Random::randint(0, MAX_CARD);
-    while (mask & (1 << c))
+    while (mask & (1ll << c))
         c = Random::randint(0, MAX_CARD);
     cards.push_back(c);
-    mask |= (1 << c);
+    mask |= (1ll << c);
 }

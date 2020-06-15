@@ -39,17 +39,15 @@ void clearEHS() {
 }
 
 int getCardAbstraction(const CardState& state, int player, int round_hint, int blockSize) {
-    int vPreFlop = std::ceil(getEHS(CardState(state.holeCards[player])) * blockSize);
-    int vFlop = state.boardCards.size() >= 1 && round_hint >= 1
-        ? std::ceil(getEHS(CardState(state.holeCards[player], Cards(state.boardCards.begin(), state.boardCards.begin() + 1))) * blockSize)
-        : 0;
-    int vTurn = state.boardCards.size() >= 2 && round_hint >= 2
-        ? std::ceil(getEHS(CardState(state.holeCards[player], Cards(state.boardCards.begin(), state.boardCards.begin() + 2))) * blockSize)
-        : 0;
-    int vRiver = state.boardCards.size() >= 5 && round_hint >= 3
-        ? std::ceil(getEHS(CardState(state.holeCards[player], Cards(state.boardCards.begin(), state.boardCards.begin() + 5))) * blockSize)
-        : 0;
-    return vPreFlop + (blockSize + 1) * (vFlop + (blockSize + 1) * (vTurn + (blockSize + 1) * vRiver));
+    if (round_hint == 0)
+        return std::ceil(getEHS(CardState(state.holeCards[player])) * blockSize);
+    if (round_hint == 1)
+        return std::ceil(getEHS(CardState(state.holeCards[player], Cards(state.boardCards.begin(), state.boardCards.begin() + 1))) * blockSize);
+    if (round_hint == 2)
+        return std::ceil(getEHS(CardState(state.holeCards[player], Cards(state.boardCards.begin(), state.boardCards.begin() + 2))) * blockSize);
+    if (round_hint == 3)
+        return std::ceil(getEHS(CardState(state.holeCards[player], Cards(state.boardCards.begin(), state.boardCards.begin() + 5))) * blockSize);
+    assert(false);
 }
 
 Action getAction(const GameState& game, int action_id) {
@@ -63,8 +61,10 @@ Action getAction(const GameState& game, int action_id) {
     else if (action_id == 2) {
         assert(game.canAllin());
         action.type = ALLIN;
+    } else if (!game.canRaise()) { // treat as all-in
+        assert(game.canAllin());
+        action.type = ALLIN;
     } else {
-        assert(game.canRaise());
         action_id -= 3;
         assert(0 <= action_id && action_id < BET_ABS_SIZE);
         int bet = int(game.pot() * BET_ABS_LIST[action_id]);
@@ -78,6 +78,7 @@ Action getAction(const GameState& game, int action_id) {
         action.type = RAISE;
         action.bet = bet;
     }
+
     return action;
 }
 
@@ -85,9 +86,9 @@ int getNumAction(const GameState& game) {
     assert(game.hasAction());
     int n = 2;                  // fold & call
     if (game.canAllin())
-        n += 1;                 // all-in
-    if (game.canRaise())
-        n += BET_ABS_SIZE;
+        n += 1 + BET_ABS_SIZE;  // all-in
+    // if (game.canRaise())
+    //     n += BET_ABS_SIZE;
     return n;
 }
 
@@ -96,9 +97,13 @@ int getGameAbstraction(const GameState& game) {
     int card_abs = getCardAbstraction(game.cards, game.player, game.round);
     int stack0_abs = game.spent[0] / STACK_DIVISOR;
     int stack1_abs = game.spent[1] / STACK_DIVISOR;
-    // printf("Game abstraction: %d %d %d %d\n", card_abs, stack0_abs, stack1_abs, game.player);
-    return card_abs * (STACK_ABS_SIZE + 1) * (STACK_ABS_SIZE + 1) * 2
-        + stack0_abs * (STACK_ABS_SIZE + 1) * 2
+    assert(card_abs < CARD_ABS_SIZE);
+    assert(stack0_abs < STACK_ABS_SIZE);
+    assert(stack1_abs < STACK_ABS_SIZE);
+    // printf("Game abstraction: %d %d %d %d %d\n", game.round, card_abs, stack0_abs, stack1_abs, game.player);
+    return game.round * CARD_ABS_SIZE * STACK_ABS_SIZE * STACK_ABS_SIZE * 2
+        + card_abs * STACK_ABS_SIZE * STACK_ABS_SIZE * 2
+        + stack0_abs * STACK_ABS_SIZE * 2
         + stack1_abs * 2
         + game.player;
 }

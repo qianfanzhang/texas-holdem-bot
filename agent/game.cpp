@@ -56,12 +56,11 @@ bool GameState::doAction(Action action) {
     assert(hasAction());
     assert(spent[player] <= spent[player ^ 1]);
 
-    if (action.type == FOLD) {
-        assert(spent[player] <= spent[player ^ 1]);
+    if (action.type == FOLD && spent[player] < spent[player ^ 1]) {
         fold = true;
         player = -1;
         ++round;
-    } else if (action.type == CALL) {
+    } else if ((action.type == FOLD && spent[player] == spent[player ^ 1]) || action.type == CALL) {
         spent[player] = spent[player ^ 1];
         if (first_player) {
             assert(!allin);
