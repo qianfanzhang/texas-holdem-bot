@@ -4,6 +4,8 @@
 #include <vector>
 #include <cstdio>
 #include <cinttypes>
+#include "random.h"
+#include "evalHandTables"
 
 const int MAX_CARD = 51;
 
@@ -26,24 +28,36 @@ inline void printCard(uint8_t card) {
     putchar(suitChars[getSuit(card)]);
 }
 
-using Cards = std::vector<uint8_t>;
+using Cards = uint64_t;
+
+inline void sample(Cards& cards, Cards& mask) {
+    uint8_t c = Random::randint(0, MAX_CARD);
+    while (mask & (1ll << c))
+        c = Random::randint(0, MAX_CARD);
+    cards |= (1ll << c);
+    mask |= (1ll << c);
+}
 
 struct CardState {
     Cards holeCards[2];
     Cards boardCards;
 
-    CardState() { }
-
-    CardState(const Cards& hc) {
-        holeCards[0] = hc;
+    CardState() {
+        holeCards[0] = holeCards[1] = boardCards = 0;
     }
 
-    CardState(const Cards& hc, const Cards& bc) {
+    CardState(Cards hc) {
         holeCards[0] = hc;
+        holeCards[1] = boardCards = 0;
+    }
+
+    CardState(Cards hc, Cards bc) {
+        holeCards[0] = hc;
+        holeCards[1] = 0;
         boardCards = bc;
     }
 
-    CardState(const Cards& hc0, const Cards& hc1, const Cards& bc) {
+    CardState(Cards hc0, Cards hc1, Cards bc) {
         holeCards[0] = hc0;
         holeCards[1] = hc1;
         boardCards = bc;
@@ -51,13 +65,53 @@ struct CardState {
 
     void print() const;
     uint64_t getMask() const;
-    int getHandValue(int player = 0) const;
+    uint64_t getMask(int player) const;
+    int getHandValue(int player) const;
 
     void sampleHoleCard(int player, int size);
     void sampleBoardCard(int size);
     void sampleAll();
 };
 
-void sample(Cards& cards, uint64_t& mask);
+inline Cards CardState::getMask() const {
+    return holeCards[0] | holeCards[1] | boardCards;
+}
+
+inline Cards CardState::getMask(int player) const {
+    return holeCards[player] | boardCards;
+}
+
+inline int CardState::getHandValue(int player) const {
+    Cardset set = emptyCardset();
+    Cards mask = holeCards[player] | boardCards;
+    while (mask) {
+        uint8_t c = __builtin_ctzll(mask);
+        mask ^= 1ll << c;
+        addCardToCardset(&set, getSuit(c), getRank(c));
+    }
+    return rankCardset(set);
+}
+
+inline void CardState::sampleHoleCard(int player, int size) {
+    uint64_t mask = getMask();
+    for (int i = 0; i < size; ++i)
+        sample(holeCards[player], mask);
+}
+
+inline void CardState::sampleBoardCard(int size) {
+    uint64_t mask = getMask();
+    for (int i = 0; i < size; ++i)
+        sample(boardCards, mask);
+}
+
+inline void CardState::sampleAll() {
+    uint64_t mask = getMask();
+    for (int i = __builtin_popcountll(holeCards[0]); i < 2; ++i)
+        sample(holeCards[0], mask);
+    for (int i = __builtin_popcountll(holeCards[1]); i < 2; ++i)
+        sample(holeCards[1], mask);
+    for (int i = __builtin_popcountll(boardCards); i < 5; ++i)
+        sample(boardCards, mask);
+}
 
 #endif

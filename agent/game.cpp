@@ -1,7 +1,7 @@
 #include "game.h"
 
 void GameState::print() const {
-    printf("round=%d, player=%d, fold=%d, allin=%d, first_player=%d, last_raise=%d, presampled=%d\n", round, player, fold, allin, first_player, last_raise, presampled);
+    printf("round=%d, player=%d, fold=%d, allin=%d, first_player=%d, last_raise=%d\n", round, player, fold, allin, first_player, last_raise);
     cards.print();
     printf("pot: %d, %d\n", spent[0], spent[1]);
 }
@@ -22,16 +22,12 @@ int GameState::getValue() const {
 void GameState::sampleCard() {
     assert(isChance());
     if (round == 0) {
-        if (!presampled) {
-            cards.sampleHoleCard(0, 2);
-            cards.sampleHoleCard(1, 2);
-        }
+        cards.sampleHoleCard(0, 2);
+        cards.sampleHoleCard(1, 2);
         player = 0;             // smallblind first
     } else {
-        if (!presampled) {
-            int num_cards = (round == 3 ? 3 : 1);
-            cards.sampleBoardCard(num_cards);
-        }
+        int num_cards = (round == 3 ? 3 : 1);
+        cards.sampleBoardCard(num_cards);
         player = 1;             // bigblind first
     }
     first_player = true;
@@ -42,14 +38,6 @@ void GameState::sampleCard() {
         player = -1;
         ++round;
     }
-}
-
-void GameState::presampleCard() {
-    assert(round == 0 && !presampled);
-    presampled = true;
-    cards.sampleHoleCard(0, 2);
-    cards.sampleHoleCard(1, 2);
-    cards.sampleBoardCard(5);
 }
 
 bool GameState::doAction(Action action) {

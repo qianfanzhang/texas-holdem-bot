@@ -25,7 +25,6 @@ struct GameState {
     CardState cards;
     int spent[2];
     int last_raise;
-    bool presampled;
 
     GameState() {
         round = 0;
@@ -35,7 +34,6 @@ struct GameState {
         spent[0] = SMALL_BLIND;
         spent[1] = BIG_BLIND;
         last_raise = BIG_BLIND;
-        presampled = false;
     }
 
     int pot() const {
@@ -80,7 +78,6 @@ struct GameState {
 
     int getValue() const;
     void sampleCard();
-    void presampleCard();
     bool doAction(Action action); // false: next round; true: continue
 };
 

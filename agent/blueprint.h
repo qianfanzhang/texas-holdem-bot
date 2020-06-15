@@ -5,8 +5,8 @@
 #include "game.h"
 #include "abstraction.h"
 
-const int NUM_SAMPLE_BR = 200;
-const int NUM_SAMPLE_APPROX = 5000;
+const int NUM_SAMPLE_BR = 500;
+const int NUM_SAMPLE_APPROX = 10000;
 
 struct Blueprint {
     float regret[ABS_SIZE][ACTION_SIZE];
@@ -24,15 +24,26 @@ struct Blueprint {
     int cnt;
     int iter;
     bool update_br;
+    int miss_cnt;
 
     void init();
     void load(std::string file);
     void save(std::string file) const;
     void train(int num_iter);
 
-    float getExploitability(int num_sample_br = NUM_SAMPLE_BR, int num_sample_approx = NUM_SAMPLE_APPROX);
+    float getExploitability();
     float mccfr(GameState g, float prob);
     float sample(GameState g);
 };
+
+inline void Blueprint::load(std::string file) {
+    FILE* f = fopen(file.c_str(), "r");
+    for (int s = 0; s < ABS_SIZE; ++s) {
+        for (int a = 0; a < ACTION_SIZE; ++a)
+            fscanf(f, "%f%f%f", &regret[s][a], &sigma[s][a], &sum_sigma[s][a]);
+        fscanf(f, "%f", &sum_pi[s]);
+    }
+    fclose(f);
+}
 
 #endif
