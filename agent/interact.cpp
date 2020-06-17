@@ -36,15 +36,7 @@ int main() {
             g.doAction(Action({type, bet}));
         } else {
             assert(g.player == (human ^ 1));
-            int infoset = getGameAbstraction(g);
-            int num_action = getNumAction(g);
-            float p[ACTION_SIZE];
-            assert(bp.sum_pi[infoset] > 1e-5);
-            for (int i = 0; i < num_action; ++i)
-                p[i] = bp.sum_sigma[infoset][i] / bp.sum_pi[infoset];
-            int action_id = Random::choice(num_action, p);
-            Action action = getAction(g, action_id);
-            g.doAction(action);
+            g.doAction(bp.sampleAction(g));
         }
     }
 }

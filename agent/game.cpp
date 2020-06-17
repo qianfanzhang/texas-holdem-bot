@@ -12,6 +12,7 @@ int GameState::getValue() const {
         // assert(spent[0] != spent[1]);
         return spent[0] > spent[1] ? spent[1] : -spent[0];
     }
+    assert(spent[0] == spent[1]);
     int v0 = cards.getHandValue(0);
     int v1 = cards.getHandValue(1);
     if (v0 != v1)
@@ -26,7 +27,7 @@ void GameState::sampleCard() {
         cards.sampleHoleCard(1, 2);
         player = 0;             // smallblind first
     } else {
-        int num_cards = (round == 3 ? 3 : 1);
+        int num_cards = (round == 1 ? 3 : 1);
         cards.sampleBoardCard(num_cards);
         player = 1;             // bigblind first
     }
@@ -44,7 +45,8 @@ bool GameState::doAction(Action action) {
     assert(hasAction());
     assert(spent[player] <= spent[player ^ 1]);
 
-    if (action.type == FOLD && spent[player] < spent[player ^ 1]) {
+    if (action.type == FOLD) {
+        assert(canFold());
         fold = true;
         player = -1;
         ++round;

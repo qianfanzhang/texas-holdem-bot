@@ -1,15 +1,7 @@
 #include "blueprint.h"
 #include "random.h"
 #include <cstring>
-
-inline void normalize(int n, float p[]) {
-    float s = 0;
-    for (int i = 0; i < n; ++i)
-        s += p[i];
-    assert(s > 0);
-    for (int i = 0; i < n; ++i)
-        p[i] /= s;
-}
+#include <chrono>
 
 void Blueprint::init() {
     for (int s = 0; s < ABS_SIZE; ++s) {
@@ -18,84 +10,91 @@ void Blueprint::init() {
             sigma[s][a] = 1. / ACTION_SIZE;
             sum_sigma[s][a] = 1. / ACTION_SIZE;
         }
-        sum_pi[s] = 1;
     }
 }
 
-void Blueprint::save(std::string file) const {
-    FILE* f = fopen(file.c_str(), "w");
-    for (int s = 0; s < ABS_SIZE; ++s) {
-        // fprintf(f, "abs %d %d %d %d\n", s / (STACK_ABS_SIZE * STACK_ABS_SIZE * 2), s / (STACK_ABS_SIZE * 2) % STACK_ABS_SIZE, s / 2 % STACK_ABS_SIZE, s % 2);
-        for (int a = 0; a < ACTION_SIZE; ++a)
-            fprintf(f, "%.2f %.2f %.2f\n", regret[s][a], sigma[s][a], sum_sigma[s][a]);
-        fprintf(f, "%.2f\n", sum_pi[s]);
-    }
-    fclose(f);
-}
-
-void Blueprint::train(int num_iter) {
+void Blueprint::train(int num_iter, std::string save_file) {
     memset(visited, -1, sizeof(visited));
+
+    cur_cnt = 0;
+    auto last_time = std::chrono::high_resolution_clock::now();
 
     for (iter = 0; iter < num_iter; ++iter) {
         sample_player = iter % 2;
         GameState g;
-        mccfr(g, 1);
+        mccfr(g);
 
-        if (iter % 5000 == 0) {
+        if (iter % 10000 == 0) {
+            auto cur_time = std::chrono::high_resolution_clock::now();
+            double duration = std::chrono::duration_cast<std::chrono::seconds>(cur_time - last_time).count();
             printf("Iteration %d/%d\n", iter, num_iter);
-            printf("\tVisited nodes %d/%d\n", cnt, ABS_SIZE);
+            printf("\tNodes (this period)   %lld\n", cur_cnt);
+            printf("\tNodes (overall)       %d/%d\n", cnt, ABS_SIZE);
+            printf("\tSpeed (nodes per sec) %.2f\n", cur_cnt / duration);
+            // printf("\tAvg node access: %.2f\n", (double)cur_cnt / (iter + 1));
+            cur_cnt = 0;
+            last_time = cur_time;
         }
 
-        if (iter % 100000 <= 1) {
+        if (iter % 100000 == 0) {
             printf("Calculating exploitability...\n");
-            float e = getExploitability();
-            printf("\tExploitablity(%d) = %.2f\n", sample_player, e);
+            printf("\tExploitablity(0) = %.2f\n", getExploitability(0));
+            printf("\tExploitablity(1) = %.2f\n", getExploitability(1));
         }
 
-        if (iter % 100000 == 1 && iter > 1) {
+        if (iter % 100000 == 0 && iter > 1) {
             printf("Saving blueprint...\n");
-            save("blueprint_checkpoint.txt");
+            save(save_file);
             printf("Saving success.\n");
         }
 
-        if (iter % 1000000)
+        if (iter % 500000 == 0)
             clearEHS();
     }
 }
 
-float Blueprint::getExploitability() {
+double Blueprint::getExploitability(int player) {
     memset(ev_sum, 0, sizeof(ev_sum));
     memset(ev_num, 0, sizeof(ev_num));
     memset(best_response, 0, sizeof(best_response));
+    exp_sample_player = player;
 
-    float sum_ev = 0;
-    update_br = true;
+    double sum_ev = 0;
     for (int i = 0; i < NUM_SAMPLE_BR; ++i) {
         GameState g;
-        float v = sample(g);
-        sum_ev += v;
+        sum_ev += sample(g);
     }
-    printf("\tBR avg ev=%.2f\n", sum_ev / NUM_SAMPLE_BR);
+    // printf("\tBR avg ev=%.2f\n", sum_ev / NUM_SAMPLE_BR);
 
     sum_ev = 0;
-    update_br = false;
-    miss_cnt = 0;
     for (int i = 0; i < NUM_SAMPLE_APPROX; ++i) {
         GameState g;
-        float v = sample(g);
-        sum_ev += v;
+        while (!g.isTerminal()) {
+            if (g.isChance())
+                g.sampleCard();
+            else if (g.player == player) {
+                Action action = sampleAction(g);
+                g.doAction(action);
+            } else {
+                Action action = sampleBR(g);
+                g.doAction(action);
+            }
+        }
+        sum_ev += g.getValue() * (player == 0 ? -1 : 1);
     }
-    printf("\tMiss: %d\n", miss_cnt);
+
     return sum_ev / NUM_SAMPLE_APPROX;
 }
 
-float Blueprint::mccfr(GameState g, float prob) {
+double Blueprint::mccfr(GameState g) {
     if (g.isTerminal())
         return g.getValue() * (sample_player == 0 ? 1 : -1);
     if (g.isChance()) {
         g.sampleCard();
-        return mccfr(g, prob);
+        return mccfr(g);
     }
+
+    ++cur_cnt;
 
     int infoset = getGameAbstraction(g);
     int num_action = getNumAction(g);
@@ -104,78 +103,57 @@ float Blueprint::mccfr(GameState g, float prob) {
     if (visited[infoset] == -1)
         ++cnt;
 
-    // reuse calculated utility
-    // FIXME: there might be a severe bug
-    if (visited[infoset] == iter) {
-        // regret matching
-        float sum_regret = 0;
-        for (int i = 0; i < num_action; ++i) {
-            regret[infoset][i] += last_regret[infoset][i];
-            regret[infoset][i] = std::max<float>(regret[infoset][i], 0);
-            sum_regret += std::max<float>(regret[infoset][i], 0);
-        }
-        if (sum_regret == 0) {
-            for (int i = 0; i < num_action; ++i)
-                sigma[infoset][i] = 1. / num_action;
-        } else {
-            for (int i = 0; i < num_action; ++i)
-                sigma[infoset][i] = std::max<float>(regret[infoset][i], 0) / sum_regret;
-        }
-        // update average strategy
-        for (int i = 0; i < num_action; ++i)
-            sum_sigma[infoset][i] += prob * sigma[infoset][i];
-        sum_pi[infoset] += prob;
-
-        return utility[infoset];
-    }
-
     visited[infoset] = iter;
 
-    normalize(num_action, sigma[infoset]);
+    // regret matching
+    double sum_regret = 0;
+    for (int i = 0; i < num_action; ++i) {
+        double r = regret[infoset][i];
+        sum_regret += r > 0 ? r : 0;
+    }
+    if (sum_regret < 1e-5) {
+        for (int i = 0; i < num_action; ++i)
+            sigma[infoset][i] = 1. / num_action;
+    } else {
+        for (int i = 0; i < num_action; ++i) {
+            double r = regret[infoset][i];
+            sigma[infoset][i] = (r > 0 ? r : 0) / sum_regret;
+        }
+    }
+
+    double v[ACTION_SIZE];
+    double ev = 0;
+
     if (g.player != sample_player) {
         int action_id;
         action_id = Random::choice(num_action, sigma[infoset]);
         Action action = getAction(g, action_id);
         g.doAction(action);
-        return utility[infoset] = mccfr(g, prob);
-    }
+        ev = mccfr(g);
 
-    float ev = 0;
-    for (int i = 0; i < num_action; ++i) {
-        Action action = getAction(g, i);
-        GameState g0 = g;
-        g0.doAction(action);
-        last_regret[infoset][i] = mccfr(g0, prob * sigma[infoset][i]);
-        ev += sigma[infoset][i] * last_regret[infoset][i];
-    }
-
-    // regret matching
-    float sum_regret = 0;
-    for (int i = 0; i < num_action; ++i) {
-        last_regret[infoset][i] -= ev;
-        regret[infoset][i] += last_regret[infoset][i];
-        regret[infoset][i] = std::max<float>(regret[infoset][i], 0);
-        sum_regret += std::max<float>(regret[infoset][i], 0);
-    }
-    if (sum_regret == 0) {
+        // update average strategy
         for (int i = 0; i < num_action; ++i)
-            sigma[infoset][i] = 1. / num_action;
+            sum_sigma[infoset][i] += sigma[infoset][i];
     } else {
+        for (int i = 0; i < num_action; ++i) {
+            Action action = getAction(g, i);
+            GameState g0 = g;
+            g0.doAction(action);
+            v[i] = mccfr(g0);
+            ev += sigma[infoset][i] * v[i];
+        }
+
+        // update regret
         for (int i = 0; i < num_action; ++i)
-            sigma[infoset][i] = std::max<float>(regret[infoset][i], 0) / sum_regret;
+            regret[infoset][i] += v[i] - ev;
     }
 
-    // update average strategy
-    for (int i = 0; i < num_action; ++i)
-        sum_sigma[infoset][i] += prob * sigma[infoset][i];
-    sum_pi[infoset] += prob;
-
-    return utility[infoset] = ev;
+    return ev;
 }
 
-float Blueprint::sample(GameState g) {
+double Blueprint::sample(GameState g) {
     if (g.isTerminal())
-        return g.getValue() * (sample_player == 0 ? -1 : 1);
+        return g.getValue() * (exp_sample_player == 0 ? -1 : 1);
     if (g.isChance()) {
         g.sampleCard();
         return sample(g);
@@ -187,14 +165,14 @@ float Blueprint::sample(GameState g) {
     if (visited[infoset] == -1)
         ++miss_cnt;
 
-    if (g.player == sample_player) {
-        float avg_sigma[ACTION_SIZE];
-        for (int i = 0; i < num_action; ++i) {
-            if (sum_pi[infoset] < 1e-5)
-                avg_sigma[i] = 1. / num_action;
-            else
-                avg_sigma[i] = sum_sigma[infoset][i] / sum_pi[infoset];
-        }
+    if (g.player == exp_sample_player) {
+        double avg_sigma[ACTION_SIZE];
+
+        double s = 0;
+        for (int i = 0; i < num_action; ++i)
+            s += sum_sigma[infoset][i];
+        for (int i = 0; i < num_action; ++i)
+            avg_sigma[i] = sum_sigma[infoset][i] / s;
 
         int action_id = Random::choice(num_action, avg_sigma);
         Action action = getAction(g, action_id);
@@ -205,28 +183,23 @@ float Blueprint::sample(GameState g) {
         return ev_sum[infoset] / ev_num[infoset];
     }
 
-    if (!update_br) {
-        Action action = getAction(g, best_response[infoset]);
-        g.doAction(action);
-        return sample(g);
-    }
-
-    float max_exp = -STACK_SIZE;
+    double max_exp = -STACK_SIZE;
     for (int i = 0; i < num_action; ++i) {
         Action action = getAction(g, i);
         GameState g0 = g;
         g0.doAction(action);
-        float ev = sample(g0);
+        double ev = sample(g0);
         if (ev > max_exp) {
             max_exp = ev;
             best_response[infoset] = i;
         }
     }
 
-    return utility[infoset] = max_exp;
+    return max_exp;
 }
 
 Blueprint bp;
+// Blueprint bp0;
 
 int main() {
     printf("Initialization start\n");
@@ -234,9 +207,18 @@ int main() {
     printf("Initialization done\n");
     printf("Occupied space: %ld MB\n", sizeof(bp) / 1024 / 1024);
 
-    bp.load("blueprint_checkpoint.txt");
+    // bp.load("blueprint_checkpoint.txt");
+
+    // bp0.load("blueprint_checkpoint.nodecay.txt");
+    // int num_sample = 1e6;
+    // double sum = 0;
+    // for (int i = 0; i < num_sample; ++i) {
+    //     sum += match(bp, bp0);
+    //     sum += -match(bp0, bp);
+    // }
+    // printf("ev = %.2f\n", sum / num_sample);
 
     printf("Training start\n");
-    bp.train(1000000002);
+    bp.train(1000000001, "blueprint_checkpoint.txt");
     printf("Training done\n");
 }

@@ -8,20 +8,20 @@
 #include "abstraction.h"
 #include "random.h"
 
-static std::unordered_map<Cards, float> EHS_table;
+static std::unordered_map<Cards, double> EHS_table;
 
 void clearEHS() {
     EHS_table.clear();
 }
 
 // Expected Hand Strength
-float getEHS(CardState state, int player) {
+double getEHS(CardState state, int player) {
     Cards c = state.getMask(player);
     auto it = EHS_table.find(c);
     if (it != EHS_table.end())
         return it->second;
 
-    float hs = 0;
+    double hs = 0;
     state.holeCards[player ^ 1] = 0;
     for (int i = 0; i < EHS_SAMPLE; ++i) {
         CardState s0(state);
@@ -36,22 +36,23 @@ float getEHS(CardState state, int player) {
     }
 
     return EHS_table[c] = hs / EHS_SAMPLE;
+    // return hs / EHS_SAMPLE;
 }
 
 Action getAction(const GameState& game, int action_id) {
     assert(game.hasAction());
 
     Action action;
-    if (action_id == 0)
+    if (action_id == 0 && game.canFold()) {
         action.type = FOLD;
-    else if (action_id == 1)
+        action.bet = 0;
+    } else if (action_id <= 1) {
         action.type = CALL;
-    else if (action_id == 2) {
+        action.bet = 0;
+    } else if (action_id == 2 || !game.canRaise()) { // treat as all-in
         assert(game.canAllin());
         action.type = ALLIN;
-    } else if (!game.canRaise()) { // treat as all-in
-        assert(game.canAllin());
-        action.type = ALLIN;
+        action.bet = 0;
     } else {
         action_id -= 3;
         assert(0 <= action_id && action_id < BET_ABS_SIZE);

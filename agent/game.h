@@ -66,6 +66,10 @@ struct GameState {
         return STACK_SIZE - maxSpent() - 1;
     }
 
+    bool canFold() const {
+        return player != -1 && spent[player] < spent[player ^ 1];
+    }
+
     bool canRaise() const {
         return player != -1 && maxSpent() + last_raise < STACK_SIZE;
     }

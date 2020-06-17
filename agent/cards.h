@@ -38,6 +38,13 @@ inline void sample(Cards& cards, Cards& mask) {
     mask |= (1ll << c);
 }
 
+inline Cards getMask(uint8_t* cards, int n) {
+    Cards mask = 0;
+    for (int i = 0; i < n; ++i)
+        mask |= (1ll << cards[i]);
+    return mask;
+}
+
 struct CardState {
     Cards holeCards[2];
     Cards boardCards;

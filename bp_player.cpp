@@ -13,71 +13,39 @@
 #include "rng.h"
 #include "net.h"
 
+#include "agent/adapter.h"
+
 
 Action act(Game *game, MatchState *state, rng_state_t *rng) {
+    const int MAX_LEN = 1e5;
+    char out_str[MAX_LEN];
+    printMatchState(game, state, MAX_LEN, out_str);
+    printf("%s\n", out_str);
+    // printf("\tround: %d\n", state->state.round);
+    // printf("\tspent: %d %d\n", state->state.spent[0], state->state.spent[1]);
+    // printf("\tminRaise: %d\n", state->state.minNoLimitRaiseTo);
+    // printf("\tplayer: %d\n", state->viewingPlayer);
+    // printf("\tboardCards:");
+    // for (int i = 0; i < 5; ++i)
+    //     printf("%u ", state->state.boardCards[i]);
+    // printf("\n\tholeCards[%d]:", state->viewingPlayer);
+    // for (int i = 0; i < 2; ++i)
+    //     printf("%u ", state->state.holeCards[state->viewingPlayer][i]);
+    // printf("\n");
+
+    State s = state->state;
+    int p = state->viewingPlayer;
+    std::pair<int, int> a = getAction(s.round, p, s.spent, s.minNoLimitRaiseTo, s.holeCards[p], s.boardCards, "agent/blueprint_checkpoint.txt");
+
     Action action;
-
-    // TODO: substitute this simple random strategy with your own strategy
-
-    double probs[ NUM_ACTION_TYPES ];
-    double actionProbs[ NUM_ACTION_TYPES ];
-    /* Define the probabilities of actions for the player */
-    probs[ a_fold ] = 0.06;
-    probs[ a_call ] = ( 1.0 - probs[ a_fold ] ) * 0.5;
-    probs[ a_raise ] = ( 1.0 - probs[ a_fold ] ) * 0.5;
-
-    /* build the set of valid actions */
-    double p = 0.0;
-    int a;
-    for( a = 0; a < NUM_ACTION_TYPES; ++a ) {
-        actionProbs[ a ] = 0.0;
-    }
-
-    /* consider fold */
-    action.type = a_fold;
-    action.size = 0;
-    if( isValidAction( game, &(state->state), 0, &action ) ) {
-        actionProbs[ a_fold ] = probs[ a_fold ];
-        p += probs[ a_fold ];
-    }
-
-    /* consider call */
-    action.type = a_call;
-    action.size = 0;
-    actionProbs[ a_call ] = probs[ a_call ];
-    p += probs[ a_call ];
-
-    /* consider raise */
-    int32_t min, max;
-    if( raiseIsValid( game, &(state->state), &min, &max ) ) {
-        actionProbs[ a_raise ] = probs[ a_raise ];
-        p += probs[ a_raise ];
-    }
-
-    /* normalise the probabilities  */
-    assert( p > 0.0 );
-    for( a = 0; a < NUM_ACTION_TYPES; ++a ) {
-
-        actionProbs[ a ] /= p;
-    }
-
-    /* choose one of the valid actions at random */
-    p = genrand_real2( rng );
-    for( a = 0; a < NUM_ACTION_TYPES - 1; ++a ) {
-        if( p <= actionProbs[ a ] ) {
-            break;
-        }
-        p -= actionProbs[ a ];
-    }
-    action.type = (enum ActionType)a;
-    if( a == a_raise ) {
-        action.size = min + genrand_int32( rng ) % ( max - min + 1 );
-    }
-    else {
-        action.size = 0;
-    }
-
+    action.type = ActionType(a.first);
+    action.size = a.second;
+    printf("\tDo action (%d,%d)\n", action.type, action.size);
     return action;
+
+    // int32_t min, max;
+    // if(raiseIsValid( game, &(state->state), &min, &max ))
+    //     printf("\tRAISE is valid, min=%d, max=%d\n", min, max);
 }
 
 

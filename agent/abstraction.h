@@ -6,18 +6,18 @@
 #include "game.h"
 
 
-const int EHS_SAMPLE = 1000;
-const int CARD_ABS_BLOCK_MAX = 10;
+const int EHS_SAMPLE = 100;
+const int CARD_ABS_BLOCK_MAX = 50;
 const int CARD_ABS_SIZE = CARD_ABS_BLOCK_MAX + 1;
 const int STACK_ABS_SIZE = 10;
 const int STACK_ABS_LIST[STACK_ABS_SIZE] = {100, 200, 400, 800, 1600, 3200, 6400, 12800, 20000, 20001};
 const int ABS_SIZE = 4 * CARD_ABS_SIZE * STACK_ABS_SIZE * STACK_ABS_SIZE * 2;
 
 void clearEHS();
-float getEHS(CardState state, int player);
+double getEHS(CardState state, int player);
 
 inline int getCardAbstraction(const CardState& state, int player) {
-    return std::ceil(getEHS(state, player) * CARD_ABS_BLOCK_MAX);
+    return std::round(getEHS(state, player) * CARD_ABS_BLOCK_MAX);
 }
 
 inline int getStackAbstraction(int stack) {
@@ -43,9 +43,9 @@ inline int getGameAbstraction(const GameState& game) {
         + game.player;
 }
 
-const int BET_ABS_SIZE = 2;     // without all-in
+const int BET_ABS_SIZE = 3;     // without all-in
 const int ACTION_SIZE = 3 + BET_ABS_SIZE;
-const float BET_ABS_LIST[BET_ABS_SIZE] = {1.0, 0.8}; // relative to pot size, must be sorted decreasingly
+const double BET_ABS_LIST[BET_ABS_SIZE] = {1.0, 0.5}; // relative to pot size, must be sorted decreasingly
 
 Action getAction(const GameState& game, int action_id);
 
