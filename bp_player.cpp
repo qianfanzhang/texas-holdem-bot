@@ -15,10 +15,12 @@
 
 #include "agent/adapter.h"
 
+const int MAX_LEN = 1e5;
+char out_str[MAX_LEN];
+double acc_utility;
+int num_rounds;
 
 Action act(Game *game, MatchState *state, rng_state_t *rng) {
-    const int MAX_LEN = 1e5;
-    char out_str[MAX_LEN];
     printMatchState(game, state, MAX_LEN, out_str);
     printf("%s\n", out_str);
     // printf("\tround: %d\n", state->state.round);
@@ -32,20 +34,39 @@ Action act(Game *game, MatchState *state, rng_state_t *rng) {
     // for (int i = 0; i < 2; ++i)
     //     printf("%u ", state->state.holeCards[state->viewingPlayer][i]);
     // printf("\n");
+    // for (int i = 0; i <= state->state.round; ++i) {
+    //     printf("\tRound %d: ", i);
+    //     for (int j = 0; j < state->state.numActions[i]; ++j) {
+    //         printf("(%d:%d,%d) ", state->state.actingPlayer[i][j], state->state.action[i][j].type, state->state.action[i][j].size);
+    //     }
+    //     printf("\n");
+    // }
+
+    bool always_fold = false;
+    // if (acc_utility - 76 * (1000 - num_rounds) > 1000)
+    //     always_fold = true;
+
+    bool raised[2];
+    raised[0] = raised[1] = false;
+    for (int i = 0; i <= state->state.round; ++i) {
+        for (int j = 0; j < state->state.numActions[i]; ++j) {
+            ActionType t = state->state.action[i][j].type;
+            if (t == a_raise)
+                raised[state->state.actingPlayer[i][j]] = true;
+        }
+    }
+    printf("\t\tRaised: %d %d\n", raised[0], raised[1]);
 
     State s = state->state;
     int p = state->viewingPlayer;
-    std::pair<int, int> a = getAction(s.round, p, s.spent, s.minNoLimitRaiseTo, s.holeCards[p], s.boardCards, "agent/blueprint_checkpoint.txt");
+    std::pair<int, int> a = getAction(s.round, p, s.spent, s.minNoLimitRaiseTo, s.holeCards[p], s.boardCards, "agent/blueprint_checkpoint.txt", "agent/", raised, always_fold);
 
     Action action;
     action.type = ActionType(a.first);
     action.size = a.second;
     printf("\tDo action (%d,%d)\n", action.type, action.size);
-    return action;
 
-    // int32_t min, max;
-    // if(raiseIsValid( game, &(state->state), &min, &max ))
-    //     printf("\tRAISE is valid, min=%d, max=%d\n", min, max);
+    return action;
 }
 
 
@@ -78,6 +99,8 @@ int step(int len, char line[], Game *game, MatchState *state, rng_state_t *rng) 
 
 int main( int argc, char **argv )
 {
+    srand(time(NULL));
+
     int sock, len;
     uint16_t port;
     Game *game;
@@ -143,6 +166,8 @@ int main( int argc, char **argv )
     }
     fflush( toServer );
 
+    acc_utility = 0;
+
     /* play the game! */
     while( fgets( line, MAX_LINE_LEN, fromServer ) ) {
 
@@ -160,7 +185,13 @@ int main( int argc, char **argv )
 
         if( stateFinished( &state.state ) ) {
             /* ignore the game over message */
-
+            ++num_rounds;
+            printMatchState(game, &state, MAX_LEN, out_str);
+            printf("%s\n", out_str);
+            double u = valueOfState(game, &state.state, state.viewingPlayer);
+            acc_utility += u;
+            printf("\tUtility:      %.2f\n", u);
+            printf("\tAcc. utility: %.2f\n\n", acc_utility);
             continue;
         }
 

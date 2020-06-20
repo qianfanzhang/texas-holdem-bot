@@ -6,9 +6,10 @@
 static Blueprint bp;
 static bool initialized = false;
 
-std::pair<int, int> getAction(int round, int player, int* spent, int raiseLimit, uint8_t* holeCards, uint8_t* boardCards, std::string bp_path) {
+std::pair<int, int> getAction(int round, int player, int* spent, int raiseLimit, uint8_t* holeCards, uint8_t* boardCards, std::string bp_path, std::string abs_dir, bool* raised, bool always_fold) {
     if (!initialized) {
         bp.load(bp_path);
+        initAbstraction(abs_dir, 1000, 2000);
         initialized = true;
     }
 
@@ -24,10 +25,12 @@ std::pair<int, int> getAction(int round, int player, int* spent, int raiseLimit,
     g.last_raise = raiseLimit - max_spent;
     g.cards.holeCards[player ^ 1] = getMask(holeCards, 2);
     g.cards.boardCards = getMask(boardCards, num_boardcards[round]);
+    g.raised[0] = raised[1];
+    g.raised[1] = raised[0];
 
     assert(g.hasAction());
 
-    Action action = bp.sampleAction(g, true);
+    Action action = bp.sampleAction(g, true, always_fold);
     if (action.type == FOLD)
         return std::make_pair(0, 0);
     if (action.type == CALL)

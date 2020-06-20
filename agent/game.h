@@ -25,6 +25,7 @@ struct GameState {
     CardState cards;
     int spent[2];
     int last_raise;
+    bool raised[2];
 
     GameState() {
         round = 0;
@@ -34,6 +35,7 @@ struct GameState {
         spent[0] = SMALL_BLIND;
         spent[1] = BIG_BLIND;
         last_raise = BIG_BLIND;
+        raised[0] = raised[1] = false;
     }
 
     int pot() const {

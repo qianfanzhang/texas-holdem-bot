@@ -1,7 +1,6 @@
 #ifndef _CARDS_H
 #define _CARDS_H
 
-#include <vector>
 #include <cstdio>
 #include <cinttypes>
 #include "random.h"
@@ -70,9 +69,16 @@ struct CardState {
         boardCards = bc;
     }
 
+    bool operator== (const CardState& rhs) const {
+        return holeCards[0] == rhs.holeCards[0]
+            && holeCards[1] == rhs.holeCards[1]
+            && boardCards == rhs.boardCards;
+    }
+
     void print() const;
     uint64_t getMask() const;
-    uint64_t getMask(int player) const;
+    uint64_t getHolecardMask(int player) const;
+    uint64_t getBoardcardMask() const;
     int getHandValue(int player) const;
 
     void sampleHoleCard(int player, int size);
@@ -84,8 +90,12 @@ inline Cards CardState::getMask() const {
     return holeCards[0] | holeCards[1] | boardCards;
 }
 
-inline Cards CardState::getMask(int player) const {
-    return holeCards[player] | boardCards;
+inline Cards CardState::getHolecardMask(int player) const {
+    return holeCards[player];
+}
+
+inline Cards CardState::getBoardcardMask() const {
+    return boardCards;
 }
 
 inline int CardState::getHandValue(int player) const {

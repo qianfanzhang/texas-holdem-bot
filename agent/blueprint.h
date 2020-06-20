@@ -5,24 +5,17 @@
 #include "game.h"
 #include "abstraction.h"
 
-const int NUM_SAMPLE_BR = 1000;
-const int NUM_SAMPLE_APPROX = 10000;
-
 struct Blueprint {
     double regret[ABS_SIZE][ACTION_SIZE];
     double sigma[ABS_SIZE][ACTION_SIZE];
     double sum_sigma[ABS_SIZE][ACTION_SIZE];
-    int visited[ABS_SIZE];
-    double ev_sum[ABS_SIZE];
-    int ev_num[ABS_SIZE];
-    int best_response[ABS_SIZE];
+    long long num_visit[ABS_SIZE];
 
     int sample_player;
-    int exp_sample_player;
     int cnt;
     long long cur_cnt;
     int iter;
-    int miss_cnt;
+    int decay_iter;
 
     void init();
     void load(std::string file);
@@ -33,26 +26,28 @@ struct Blueprint {
     double mccfr(GameState g);
     double sample(GameState g);
 
-    Action sampleAction(const GameState &g, bool purification = false) const;
-    Action sampleBR(const GameState &g) const;
+    void decayRegret();
+    Action sampleAction(const GameState &g, bool purification = false, bool always_fold = false) const;
 };
 
 inline void Blueprint::load(std::string file) {
     FILE* f = fopen(file.c_str(), "r");
+    fscanf(f, "%d", &decay_iter);
     for (int s = 0; s < ABS_SIZE; ++s) {
+        fscanf(f, "%lld", &num_visit[s]);
         for (int a = 0; a < ACTION_SIZE; ++a)
             fscanf(f, "%lf%lf%lf", &regret[s][a], &sigma[s][a], &sum_sigma[s][a]);
-        // double tmp;
-        // fscanf(f, "%lf", &tmp);
     }
     fclose(f);
 }
 
 inline void Blueprint::save(std::string file) const {
     FILE* f = fopen(file.c_str(), "w");
+    fprintf(f, "%d\n", decay_iter);
     for (int s = 0; s < ABS_SIZE; ++s) {
+        fprintf(f, "%lld\n", num_visit[s]);
         for (int a = 0; a < ACTION_SIZE; ++a)
-            fprintf(f, "%.2f %.2f %.2f\n", regret[s][a], sigma[s][a], sum_sigma[s][a]);
+            fprintf(f, "%.4f %.4f %.4f\n", regret[s][a], sigma[s][a], sum_sigma[s][a]);
     }
     fclose(f);
 }
@@ -66,7 +61,7 @@ inline void normalize(int n, double p[]) {
         p[i] /= s;
 }
 
-inline Action Blueprint::sampleAction(const GameState& g, bool purification) const {
+inline Action Blueprint::sampleAction(const GameState& g, bool purification, bool always_fold) const {
     assert(g.hasAction());
 
     double avg_sigma[ACTION_SIZE];
@@ -74,11 +69,42 @@ inline Action Blueprint::sampleAction(const GameState& g, bool purification) con
     int num_action = getNumAction(g);
     assert(infoset < ABS_SIZE);
 
+    // printf("Infoset info:\n");
+    // printf("\tround=%d\n", infoset / (CARD_ABS_SIZE * STACK_ABS_SIZE * STACK_ABS_SIZE * 2 * 2 * 2));
+    // printf("\tcard_abs=%d\n", infoset / (STACK_ABS_SIZE * STACK_ABS_SIZE * 2 * 2 * 2) % CARD_ABS_SIZE);
+    // printf("\tstack0_abs=%d\n", infoset / (STACK_ABS_SIZE * 2 * 2 * 2) % STACK_ABS_SIZE);
+    // printf("\tstack1_abs=%d\n", infoset / (2 * 2 * 2) % STACK_ABS_SIZE);
+    // printf("\traised0=%d\n", infoset / (2 * 2) % 2);
+    // printf("\traised1=%d\n", infoset / (2) % 2);
+    // printf("\tplayer=%d\n", infoset % 2);
+    // g.print();
+
+    if (always_fold) {
+        printf("WARNING: ALWAYS FOLD on\n");
+        return getAction(g, 0);
+    }
+
+    printf("Num visit: %lld\n", num_visit[infoset]);
+    if (num_visit[infoset] < 5) {
+        printf("WARNING: an unvisited node, forcing FOLD\n");
+        return getAction(g, 0);
+    }
+
+    // if (getEHS(g.cards, g.player, false) < 0.5) {
+    //     printf("WARNING: winning rate too low, forcing FOLD\n");
+    //     return getAction(g, 0);
+    // }
+
     double s = 0;
     for (int i = 0; i < num_action; ++i)
         s += sum_sigma[infoset][i];
     for (int i = 0; i < num_action; ++i)
         avg_sigma[i] = sum_sigma[infoset][i] / s;
+
+    printf("Action prob: ");
+    for (int i = 0; i < num_action; ++i)
+        printf("%.3f ", avg_sigma[i]);
+    printf("\n");
 
     if (purification) {
         // s = 0;
@@ -109,18 +135,7 @@ inline Action Blueprint::sampleAction(const GameState& g, bool purification) con
     }
 
     int action_id = Random::choice(num_action, avg_sigma);
-    return getAction(g, action_id);
-}
-
-inline Action Blueprint::sampleBR(const GameState& g) const {
-    assert(g.hasAction());
-
-    int infoset = getGameAbstraction(g);
-    int num_action = getNumAction(g);
-    assert(infoset < ABS_SIZE);
-    assert(best_response[infoset] < num_action);
-
-    return getAction(g, best_response[infoset]);
+    return getAction(g, action_id, true);
 }
 
 inline double match(const Blueprint& a, const Blueprint& b) {

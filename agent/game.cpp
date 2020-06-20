@@ -67,6 +67,7 @@ bool GameState::doAction(Action action) {
         spent[player] = STACK_SIZE;
         last_raise = STACK_SIZE; // the other player must fold or call all-in
         first_player = false;
+        raised[player] = true;
         player ^= 1;
     } else {
         assert(action.type == RAISE);
@@ -75,7 +76,9 @@ bool GameState::doAction(Action action) {
         spent[player] = maxSpent() + action.bet;
         last_raise = action.bet;
         first_player = false;
+        raised[player] = true;
         player ^= 1;
     }
+
     return player != -1;
 }

@@ -19,7 +19,7 @@ Copyright (C) 2011 by the Computer Poker Research Group, University of Alberta
 #define MAX_PLAYERS 10
 #define MAX_BOARD_CARDS 7
 #define MAX_HOLE_CARDS 3
-#define MAX_NUM_ACTIONS 64
+#define MAX_NUM_ACTIONS 256
 #define MAX_SUITS 4
 #define MAX_RANKS 13
 #define MAX_LINE_LEN READBUF_LEN

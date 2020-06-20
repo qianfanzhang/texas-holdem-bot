@@ -14,7 +14,10 @@ int input(std::string prompt) {
 }
 
 int main() {
+    srand(time(NULL));
+
     bp.load("blueprint_checkpoint.txt");
+    initAbstraction("", 1000, 2000);
 
     GameState g;
     int human = input("Player");

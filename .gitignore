@@ -1,9 +1,12 @@
-logs/
-history/
 dealer
 *_player
-
+logs/
+history/
 agent/blueprint
 agent/abstraction
+agent/abstraction_gen
 agent/interact
-agent/blueprint_checkpoint*
+agent/*.abs
+agent/*.log
+agent/*.txt
+agent/*.bak
